@@ -46,7 +46,9 @@ async fn catch_all(req: HttpRequest, state: web::Data<Arc<ServerState>>) -> impl
     };
     match endpoints.get(req.method(), path) {
         Some(response) => HttpResponse::Ok().body(response.clone()),
-        None => HttpResponse::NotFound().finish(),
+        None => {
+            HttpResponse::NotFound().json(serde_json::json!({"error": "not found", "path": path}))
+        }
     }
 }
 
