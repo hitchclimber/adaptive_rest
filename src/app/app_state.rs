@@ -160,7 +160,8 @@ impl App {
                         path,
                         response,
                     } => {
-                        self.server_state.add_endpoint(method.into(), &path, response)?;
+                        self.server_state
+                            .add_endpoint(method.into(), &path, response)?;
                     }
                     EndpointAction::List { method } => {
                         let method = method.map(Into::into);
