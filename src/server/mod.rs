@@ -64,6 +64,10 @@ impl ServerState {
             .map_err(|_| InternalError::LockFailed)?;
 
         for (method, children) in endpoints.entries(by_method) {
+            if endpoints.is_empty() {
+                log::info!("No user defined endpoints currently available");
+                return Ok(());
+            }
             let entries: Vec<_> = children
                 .iter()
                 .map(|(path, content)| {
