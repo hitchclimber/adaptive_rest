@@ -20,6 +20,8 @@ use super::ui::{CommandPane, InputMode, LogPane};
 pub struct App {
     pub input: String,
     pub messages: Vec<String>,
+    history: Vec<String>,
+    history_index: Option<usize>,
     mode: InputMode,
     exit: bool,
     log_rx: UnboundedReceiver<String>,
@@ -35,6 +37,8 @@ impl App {
             exit: false,
             log_rx,
             server_state,
+            history: Vec::new(),
+            history_index: None,
         }
     }
 
@@ -80,6 +84,28 @@ impl App {
         Ok(())
     }
 
+    fn history_backward(&mut self) {
+        self.history_index = match self.history_index {
+            Some(i) if i < self.history.len() => Some(i + 1),
+            None if !self.history.is_empty() => Some(1),
+            other => other,
+        }
+    }
+
+    fn history_forward(&mut self) {
+        self.history_index = match self.history_index {
+            Some(i) if i > 1 => Some(i - 1),
+            _ => None,
+        }
+    }
+
+    fn history(&self) -> &str {
+        match self.history_index {
+            None => "",
+            Some(i) => &self.history[self.history.len() - i],
+        }
+    }
+
     fn handle_key_event(&mut self, key_event: KeyEvent) -> InternalResult<()> {
         match self.mode {
             InputMode::Normal => match key_event.code {
@@ -105,6 +131,14 @@ impl App {
                 KeyCode::Char(c) => self.input.push(c),
                 KeyCode::Backspace => {
                     self.input.pop();
+                }
+                KeyCode::Up => {
+                    self.history_backward();
+                    self.input = self.history().to_string();
+                }
+                KeyCode::Down => {
+                    self.history_forward();
+                    self.input = self.history().to_string();
                 }
                 _ => {}
             },
@@ -147,6 +181,8 @@ impl App {
                 }
             }
         }
+        self.history.push(self.input.clone());
+        self.history_index = None;
         self.input.clear();
         Ok(())
     }
