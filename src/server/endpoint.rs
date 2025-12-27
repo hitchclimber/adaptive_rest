@@ -72,7 +72,7 @@ impl PathNode {
 
 #[derive(Debug, Default)]
 pub struct EndpointStore {
-    pub(crate) entries: HashMap<Method, PathNode>,
+    entries: HashMap<Method, PathNode>,
 }
 
 impl EndpointStore {
@@ -122,6 +122,10 @@ impl EndpointStore {
             .filter(|k| by_method.is_none_or(|m| *k == m))
             .map(|m| (m, self.entries_by(m)))
             .collect()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 }
 
@@ -213,7 +217,7 @@ mod tests {
         store.delete(&Method::GET, "/a/b/c");
 
         // Method root should be pruned since no endpoints remain
-        assert!(store.entries.is_empty());
+        assert!(store.is_empty());
     }
 
     #[test]
