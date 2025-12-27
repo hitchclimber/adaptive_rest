@@ -41,14 +41,7 @@ impl<'a> Widget for &CommandPane<'a> {
             .title_bottom(instruction)
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Red));
-        let cursor = if matches!(self.mode, InputMode::Insert) {
-            "|"
-        } else {
-            ""
-        };
-        Paragraph::new(format!("{}{}", self.input, cursor))
-            .block(block)
-            .render(area, buf);
+        Paragraph::new(self.input).block(block).render(area, buf);
     }
 }
 

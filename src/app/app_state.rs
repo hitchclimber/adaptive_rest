@@ -63,6 +63,9 @@ impl App {
             mode: &self.mode,
         };
         frame.render_widget(&input_widget, chunks[0]);
+        if matches!(self.mode, InputMode::Insert) {
+            frame.set_cursor_position((chunks[0].x + 1 + self.input.len() as u16, chunks[0].y + 1));
+        }
 
         let log_widget = LogPane {
             messages: &self.messages,
