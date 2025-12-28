@@ -8,8 +8,9 @@ use ratatui::{
 };
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
+pub use crate::app::ui::{AppStyle, ColorTheme};
 use crate::{
-    app::ui::{AppStyle, ColorTheme, ListPane},
+    app::ui::ListPane,
     command::{Cli, Command, EndpointAction},
     server::{ServerState, endpoint::EndpointEntry},
     util::result::InternalResult,
@@ -39,7 +40,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(log_rx: mpsc::UnboundedReceiver<String>, server_state: Arc<ServerState>) -> Self {
+    pub fn new(
+        log_rx: mpsc::UnboundedReceiver<String>,
+        server_state: Arc<ServerState>,
+        style: AppStyle,
+    ) -> Self {
         Self {
             input: String::new(),
             messages: Vec::new(),
@@ -51,7 +56,7 @@ impl App {
             history_index: None,
             view_mode: ViewMode::Logs,
             endpoint_cache: Vec::new(),
-            style: AppStyle::from(&ColorTheme::default()),
+            style,
         }
     }
 
