@@ -17,6 +17,8 @@ On startup, you'll be in `vim`-like `Normal mode`. Following the onscreen instru
 
 Supported methods: `get`, `post`, `put`, `patch`, `delete` (case insensitive)
 
+In a separate window you can start hitting those endpoints with your app/`curl`.
+
 ## TODOs
 
 - [ ] config file support
