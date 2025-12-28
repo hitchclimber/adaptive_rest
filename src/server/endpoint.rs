@@ -135,11 +135,6 @@ impl EndpointStore {
         self.get_raw_mut(path)?.whitelist.remove(method);
         Ok(())
     }
-
-    #[allow(dead_code)]
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
 }
 
 #[cfg(test)]
@@ -205,7 +200,7 @@ mod tests {
         store.add("/a/b/c", Bytes::from("deep"));
         store.delete("/a/b/c");
 
-        assert!(store.is_empty());
+        assert!(store.entries().is_empty());
     }
 
     #[test]
