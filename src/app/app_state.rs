@@ -9,7 +9,7 @@ use ratatui::{
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 use crate::{
-    app::ui::ListPane,
+    app::ui::{AppStyle, ColorTheme, ListPane},
     command::{Cli, Command, EndpointAction},
     server::{ServerState, endpoint::EndpointEntry},
     util::result::InternalResult,
@@ -35,6 +35,7 @@ pub struct App {
     server_state: Arc<ServerState>,
     view_mode: ViewMode,
     endpoint_cache: Vec<EndpointEntry>,
+    style: AppStyle,
 }
 
 impl App {
@@ -50,6 +51,7 @@ impl App {
             history_index: None,
             view_mode: ViewMode::Logs,
             endpoint_cache: Vec::new(),
+            style: AppStyle::from(&ColorTheme::default()),
         }
     }
 
@@ -72,6 +74,7 @@ impl App {
         let input_widget = CommandPane {
             input: &self.input,
             mode: &self.mode,
+            theme: &self.style,
         };
         frame.render_widget(&input_widget, chunks[0]);
         if matches!(self.mode, InputMode::Insert) {
@@ -82,12 +85,14 @@ impl App {
             ViewMode::Logs => frame.render_widget(
                 &LogPane {
                     messages: &self.messages,
+                    theme: &self.style,
                 },
                 chunks[1],
             ),
             ViewMode::Endpoints => frame.render_widget(
                 &ListPane {
                     endpoints: &self.endpoint_cache,
+                    theme: &self.style,
                 },
                 chunks[1],
             ),
@@ -184,6 +189,10 @@ impl App {
                 Command::Endpoint { action } => match action {
                     EndpointAction::List => {
                         let list = self.server_state.list_endpoints()?;
+                        if list.is_empty() {
+                            log::info!("No endpoints to show");
+                            return Ok(());
+                        }
                         self.endpoint_cache = list;
                         self.view_mode = ViewMode::Endpoints;
                     }
