@@ -196,6 +196,7 @@ impl App {
                         let list = self.server_state.list_endpoints()?;
                         if list.is_empty() {
                             log::warn!("No endpoints to show");
+                            self.input.clear();
                             return Ok(());
                         }
                         self.endpoint_cache = list;
