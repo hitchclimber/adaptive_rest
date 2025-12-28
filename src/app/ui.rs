@@ -80,12 +80,12 @@ pub struct CommandPane<'a> {
 impl<'a> Widget for &CommandPane<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let instruction = Line::from(vec![
-            Span::styled("Q", self.theme.text_style),
-            Span::styled(" to quit ", self.theme.text_style),
-            Span::styled("I", self.theme.text_style),
-            Span::styled(" for insert mode ", self.theme.text_style),
-            Span::styled("ESC", self.theme.title_style),
-            Span::styled(" for normal mode ", self.theme.text_style),
+            Span::styled("Q", self.theme.border_style),
+            Span::styled(" to quit ", self.theme.border_style),
+            Span::styled("I", self.theme.border_style),
+            Span::styled(" for insert mode ", self.theme.border_style),
+            Span::styled("ESC", self.theme.border_style),
+            Span::styled(" for normal mode ", self.theme.border_style),
         ]);
 
         let title = Line::from(
@@ -98,6 +98,7 @@ impl<'a> Widget for &CommandPane<'a> {
         let block = Block::default()
             .bg(self.theme.bg)
             .title(title.left_aligned())
+            .title_style(self.theme.title_style)
             .title_bottom(instruction)
             .borders(Borders::ALL)
             .border_style(self.theme.border_style);
@@ -114,6 +115,7 @@ impl<'a> Widget for &LogPane<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::default()
             .title("Server Logs")
+            .title_style(self.theme.title_style)
             .borders(Borders::ALL)
             .bg(self.theme.bg)
             .border_style(self.theme.border_style);
@@ -188,6 +190,7 @@ impl<'a> Widget for &ListPane<'a> {
         .block(
             Block::default()
                 .title("Endpoints list")
+                .title_style(self.theme.title_style)
                 .borders(Borders::ALL)
                 .bg(self.theme.bg)
                 .border_style(self.theme.border_style),
