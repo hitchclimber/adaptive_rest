@@ -44,19 +44,13 @@ pub enum Command {
 pub enum EndpointAction {
     /// Add a new endpoint
     #[command(aliases = ["a", "ad", "update", "u", "up"])]
-    Add {
-        #[arg(ignore_case = true)]
-        method: HttpMethod,
-        path: String,
-        response: String,
-    },
+    Add { path: String, response: String },
     /// Delete endpoint
     #[command(aliases = ["d", "del"])]
-    Delete { method: HttpMethod, path: String },
+    Delete { path: String },
     /// List all endpoints
     #[command(alias = "l")]
-    List {
+    List,
         #[arg(ignore_case = true)]
-        method: Option<HttpMethod>,
     },
 }
