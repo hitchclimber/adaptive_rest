@@ -82,11 +82,7 @@ impl ServerState {
             format!("/{}", path)
         };
         let log_msg = format!("endpoint {} -> {}", &valid_path, &body);
-        let was_updated = self
-            .endpoints
-            .write()
-            .map_err(|_| InternalError::LockFailed)?
-            .add(&valid_path, Bytes::from(body));
+        let was_updated = self.endpoints_mut()?.add(&valid_path, Bytes::from(body));
 
         log::info!(
             "{}{}",
