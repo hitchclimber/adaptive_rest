@@ -194,6 +194,7 @@ dependencies = [
  "crossterm",
  "log",
  "ratatui",
+ "serde",
  "serde_json",
  "shlex",
  "thiserror 2.0.17",

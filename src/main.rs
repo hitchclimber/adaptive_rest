@@ -10,6 +10,7 @@ use crate::{
 
 mod app;
 mod command;
+mod config;
 mod logger;
 mod server;
 mod util;
