@@ -9,12 +9,19 @@ use ratatui::{
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 use crate::{
+    app::ui::ListPane,
     command::{Cli, Command, EndpointAction},
-    server::ServerState,
+    server::{ServerState, endpoint::EndpointEntry},
     util::result::InternalResult,
 };
 
 use super::ui::{CommandPane, InputMode, LogPane};
+
+#[derive(Debug, PartialEq)]
+enum ViewMode {
+    Logs,
+    Endpoints,
+}
 
 #[derive(Debug)]
 pub struct App {
@@ -26,6 +33,8 @@ pub struct App {
     exit: bool,
     log_rx: UnboundedReceiver<String>,
     server_state: Arc<ServerState>,
+    view_mode: ViewMode,
+    endpoint_cache: Vec<EndpointEntry>,
 }
 
 impl App {
@@ -39,6 +48,8 @@ impl App {
             server_state,
             history: Vec::new(),
             history_index: None,
+            view_mode: ViewMode::Logs,
+            endpoint_cache: Vec::new(),
         }
     }
 
@@ -67,10 +78,20 @@ impl App {
             frame.set_cursor_position((chunks[0].x + 1 + self.input.len() as u16, chunks[0].y + 1));
         }
 
-        let log_widget = LogPane {
-            messages: &self.messages,
+        match self.view_mode {
+            ViewMode::Logs => frame.render_widget(
+                &LogPane {
+                    messages: &self.messages,
+                },
+                chunks[1],
+            ),
+            ViewMode::Endpoints => frame.render_widget(
+                &ListPane {
+                    endpoints: &self.endpoint_cache,
+                },
+                chunks[1],
+            ),
         };
-        frame.render_widget(&log_widget, chunks[1]);
     }
 
     fn exit(&mut self) {
@@ -127,6 +148,9 @@ impl App {
                         self.input.clear();
                     }
                 }
+                KeyCode::Esc if self.view_mode == ViewMode::Endpoints => {
+                    self.view_mode = ViewMode::Logs
+                }
                 KeyCode::Esc => self.mode = InputMode::Normal,
                 KeyCode::Enter => {
                     self.execute_command()?;
@@ -158,21 +182,12 @@ impl App {
         match Cli::try_parse_from(std::iter::once("").chain(args.iter().map(|s| s.as_str()))) {
             Ok(cli) => match cli.command {
                 Command::Endpoint { action } => match action {
-                    EndpointAction::Add {
-                        method,
-                        path,
-                        response,
-                    } => {
-                        self.server_state
-                            .add_endpoint(method.into(), &path, response)?;
+                    EndpointAction::List => {
+                        let list = self.server_state.list_endpoints()?;
+                        self.endpoint_cache = list;
+                        self.view_mode = ViewMode::Endpoints;
                     }
-                    EndpointAction::List { method } => {
-                        let method = method.map(Into::into);
-                        self.server_state.list_endpoints(method.as_ref())?;
-                    }
-                    EndpointAction::Delete { method, path } => {
-                        self.server_state.delete_endpoint(&method.into(), &path)?;
-                    }
+                    other => self.server_state.handle(other)?,
                 },
             },
             Err(e) => {

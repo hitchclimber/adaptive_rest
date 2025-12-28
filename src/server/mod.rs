@@ -2,16 +2,18 @@ use actix_web::{
     App as ServerApp, HttpRequest, HttpResponse, HttpServer, Responder, get,
     http::Method,
     middleware::Logger,
+    mime::APPLICATION_JSON,
     web::{self, Bytes, Data, to},
 };
 use std::{
     io,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
-mod endpoint;
+pub mod endpoint;
 use crate::{
-    server::endpoint::EndpointStore,
+    command::EndpointAction,
+    server::endpoint::{EndpointEntry, EndpointStore, HandlerResult},
     util::{error::InternalError, result::InternalResult},
 };
 
@@ -25,6 +27,11 @@ async fn health() -> impl Responder {
     "OK"
 }
 
+macro_rules! json_error {
+    ($val:expr) => {
+        serde_json::json!({"error": $val})
+    };
+}
 pub async fn run_server(state: Arc<ServerState>, addr: &str) -> io::Result<()> {
     HttpServer::new(move || {
         ServerApp::new()
@@ -38,17 +45,18 @@ pub async fn run_server(state: Arc<ServerState>, addr: &str) -> io::Result<()> {
     .await
 }
 
-async fn catch_all(req: HttpRequest, state: web::Data<Arc<ServerState>>) -> impl Responder {
-    let path = req.path();
-    let endpoints = match state.endpoints.read() {
-        Ok(guard) => guard,
-        Err(_) => return HttpResponse::InternalServerError().finish(),
-    };
-    match endpoints.get(req.method(), path) {
-        Some(response) => HttpResponse::Ok().body(response.clone()),
-        None => {
-            HttpResponse::NotFound().json(serde_json::json!({"error": "not found", "path": path}))
-        }
+async fn catch_all(
+    req: HttpRequest,
+    state: web::Data<Arc<ServerState>>,
+    body: Bytes,
+) -> impl Responder {
+    match state.endpoints.write() {
+        Ok(mut store) => HttpResponse::from(store.handle(
+            req.method(),
+            req.path(),
+            if body.is_empty() { None } else { Some(&body) },
+        )),
+        Err(_) => HttpResponse::InternalServerError().json(json_error!("internal server error")),
     }
 }
 
@@ -59,45 +67,26 @@ impl ServerState {
         }
     }
 
-    pub fn list_endpoints(&self, by_method: Option<&Method>) -> InternalResult<()> {
+    pub fn list_endpoints(&self) -> InternalResult<Vec<EndpointEntry>> {
         let endpoints = self
             .endpoints
             .read()
             .map_err(|_| InternalError::LockFailed)?;
-
-        if endpoints.is_empty() {
-            log::info!("No user defined endpoints currently available");
-            return Ok(());
-        }
-        for (method, children) in endpoints.entries(by_method) {
-            let entries: Vec<_> = children
-                .iter()
-                .map(|(path, content)| {
-                    format!("  {} -> {}", path, String::from_utf8_lossy(content))
-                })
-                .collect();
-            log::info!(
-                "\t{}\n\t{}\n{}",
-                method,
-                "=".repeat(method.as_str().len()),
-                entries.join("\n")
-            );
-        }
-        Ok(())
+        Ok(endpoints.entries())
     }
 
-    pub fn add_endpoint(&self, method: Method, path: &str, body: String) -> InternalResult<()> {
+    pub fn add_endpoint(&self, path: &str, body: String) -> InternalResult<()> {
         let valid_path = if path.starts_with("/") {
             path.to_owned()
         } else {
             format!("/{}", path)
         };
-        let log_msg = format!("endpoint {} {} -> {}", method, &valid_path, &body);
+        let log_msg = format!("endpoint {} -> {}", &valid_path, &body);
         let was_updated = self
             .endpoints
             .write()
             .map_err(|_| InternalError::LockFailed)?
-            .add(method, &valid_path, Bytes::from(body));
+            .add(&valid_path, Bytes::from(body));
 
         log::info!(
             "{}{}",
@@ -107,14 +96,48 @@ impl ServerState {
         Ok(())
     }
 
-    pub fn delete_endpoint(&self, method: &Method, path: &str) -> InternalResult<()> {
+    fn endpoints_mut(&self) -> InternalResult<RwLockWriteGuard<'_, EndpointStore>> {
         self.endpoints
             .write()
-            .map_err(|_| InternalError::LockFailed)?
-            .delete(method, path)
+            .map_err(|_| InternalError::LockFailed)
+    }
+
+    pub fn delete_endpoint(&self, path: &str) -> InternalResult<()> {
+        self.endpoints_mut()?
+            .delete(path)
             .ok_or_else(|| InternalError::EndpointNotFound(path.to_owned()))?;
         log::info!("Removed endpoint {}", path);
         Ok(())
+    }
+
+    pub fn handle(&self, action: EndpointAction) -> InternalResult<()> {
+        match action {
+            EndpointAction::Add { path, response } => self.add_endpoint(&path, response),
+            EndpointAction::Allow { method, path } => {
+                self.endpoints_mut()?.allow(&path, Method::from(method))
+            }
+            EndpointAction::Delete { path } => self.delete_endpoint(&path),
+            EndpointAction::Deny { method, path } => {
+                self.endpoints_mut()?.deny(&path, &Method::from(method))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+impl From<HandlerResult> for HttpResponse {
+    fn from(value: HandlerResult) -> Self {
+        match value {
+            HandlerResult::OkEmpty => HttpResponse::Ok().finish(),
+            HandlerResult::Created => HttpResponse::Created().finish(),
+            HandlerResult::MethodNotAllowed => {
+                HttpResponse::MethodNotAllowed().json(json_error!("method not allowed"))
+            }
+            HandlerResult::NotFound => HttpResponse::NotFound().json(json_error!("not found")),
+            HandlerResult::Ok(body) => HttpResponse::Ok().content_type(APPLICATION_JSON).body(body),
+            HandlerResult::Conflict => HttpResponse::Conflict().json(json_error!("conflict")),
+            HandlerResult::BadRequest => HttpResponse::BadRequest().json("bad request"),
+        }
     }
 }
 
@@ -130,23 +153,19 @@ mod tests {
     #[test]
     fn test_add_endpoint() {
         let state = test_state();
-        state
-            .add_endpoint(Method::GET, "/test", "response".into())
-            .unwrap();
+        state.add_endpoint("/test", "response".into()).unwrap();
 
         state
-            .add_endpoint(Method::GET, "no_leading_slash", "still_valid".into())
+            .add_endpoint("no_leading_slash", "still_valid".into())
             .unwrap();
 
         let endpoints = state.endpoints.read().unwrap();
         assert_eq!(
-            endpoints.get(&Method::GET, "/test").map(|b| b.as_ref()),
+            endpoints.get("/test").map(|b| b.as_ref()),
             Some(b"response".as_ref())
         );
         assert_eq!(
-            endpoints
-                .get(&Method::GET, "/no_leading_slash")
-                .map(|b| b.as_ref()),
+            endpoints.get("/no_leading_slash").map(|b| b.as_ref()),
             Some(b"still_valid".as_ref())
         );
     }
@@ -155,18 +174,18 @@ mod tests {
     fn test_delete_endpoint() {
         let state = test_state();
         state
-            .add_endpoint(Method::GET, "/test/nested", "'{id: 123456}'".into())
+            .add_endpoint("/test/nested", "'{id: 123456}'".into())
             .unwrap();
-        state.delete_endpoint(&Method::GET, "/test/nested").unwrap();
+        state.delete_endpoint("/test/nested").unwrap();
 
         let endpoints = state.endpoints.read().unwrap();
-        assert!(endpoints.get(&Method::GET, "/test/nested").is_none());
+        assert!(endpoints.get("/test/nested").is_none());
     }
 
     #[test]
     fn test_delete_nonexistent_endpoint() {
         let state = test_state();
-        let result = state.delete_endpoint(&Method::GET, "/nonexistent");
+        let result = state.delete_endpoint("/nonexistent");
 
         assert!(matches!(result, Err(InternalError::EndpointNotFound(_))));
     }
