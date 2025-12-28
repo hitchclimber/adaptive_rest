@@ -5,6 +5,8 @@ I'm certain there are thousands of other implementations, but I didn't check; so
 
 ## Usage
 
+You can configure server address, port and themes via `toml` or `json` files. The program tries to load your configuration file from command line options (`--config`), environment (`ADPTV_CONFIG`) and will finally default to some preset.
+
 On startup, you'll be in `vim`-like `Normal mode`. Following the onscreen instructions you can use these commands to add endpoints:
 
 | Command | Aliases | Description |
@@ -21,7 +23,8 @@ In a separate window you can start hitting those endpoints with your app/`curl`.
 
 ## TODOs
 
-- [ ] config file support
+- [x] config file support
+- [ ] `XDG` support for config
 - [ ] `OPTIONS` method
 - [ ] load endpoints from file during runtime
 
