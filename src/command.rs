@@ -51,6 +51,14 @@ pub enum EndpointAction {
     /// List all endpoints
     #[command(alias = "l")]
     List,
+    Allow {
         #[arg(ignore_case = true)]
+        method: HttpMethod,
+        path: String,
+    },
+    Deny {
+        #[arg(ignore_case = true)]
+        method: HttpMethod,
+        path: String,
     },
 }
