@@ -195,7 +195,7 @@ impl App {
                     EndpointAction::List => {
                         let list = self.server_state.list_endpoints()?;
                         if list.is_empty() {
-                            log::info!("No endpoints to show");
+                            log::warn!("No endpoints to show");
                             return Ok(());
                         }
                         self.endpoint_cache = list;
