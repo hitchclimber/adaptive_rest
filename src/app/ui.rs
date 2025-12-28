@@ -7,7 +7,10 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, Widget},
 };
 
-use crate::server::endpoint::EndpointEntry;
+use crate::{
+    config::{ColorValue, ThemeConfig},
+    server::endpoint::EndpointEntry,
+};
 
 #[derive(Debug, Default)]
 pub enum InputMode {
@@ -67,6 +70,46 @@ impl Default for ColorTheme {
             warn: Color::Rgb(255, 200, 0),
             error: Color::Rgb(255, 60, 60),
             log: Color::Rgb(0, 180, 180),
+        }
+    }
+}
+
+impl From<&ColorValue> for Color {
+    fn from(value: &ColorValue) -> Self {
+        match value {
+            ColorValue::Rgb([r, g, b]) => Color::Rgb(*r, *g, *b),
+            ColorValue::Hex(s) => {
+                let s = s.trim_start_matches('#');
+                let r = u8::from_str_radix(&s[0..2], 16).unwrap_or(0);
+                let g = u8::from_str_radix(&s[2..4], 16).unwrap_or(0);
+                let b = u8::from_str_radix(&s[4..6], 16).unwrap_or(0);
+                Color::Rgb(r, g, b)
+            }
+        }
+    }
+}
+
+impl From<&ThemeConfig> for ColorTheme {
+    fn from(value: &ThemeConfig) -> Self {
+        Self {
+            border: (&value.border).into(),
+            title: (&value.title).into(),
+            text: (&value.text).into(),
+            bg: (&value.bg).into(),
+            emph: (&value.emph).into(),
+            warn: (&value.warn).into(),
+            error: (&value.error).into(),
+            log: (&value.log).into(),
+        }
+    }
+}
+
+impl ColorTheme {
+    pub fn or_default(config: Option<ThemeConfig>) -> Self {
+        if let Some(c) = config {
+            ColorTheme::from(&c)
+        } else {
+            ColorTheme::default()
         }
     }
 }
