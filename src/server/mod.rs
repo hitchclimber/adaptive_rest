@@ -32,7 +32,7 @@ macro_rules! json_error {
         serde_json::json!({"error": $val})
     };
 }
-pub async fn run_server(state: Arc<ServerState>, addr: &str) -> io::Result<()> {
+pub async fn run_server(state: Arc<ServerState>, addr: &str, port: u16) -> io::Result<()> {
     HttpServer::new(move || {
         ServerApp::new()
             .wrap(Logger::default())
@@ -40,7 +40,7 @@ pub async fn run_server(state: Arc<ServerState>, addr: &str) -> io::Result<()> {
             .service(health)
             .default_service(to(catch_all))
     })
-    .bind(addr)?
+    .bind((addr, port))?
     .run()
     .await
 }
@@ -75,14 +75,21 @@ impl ServerState {
         Ok(endpoints.entries())
     }
 
-    pub fn add_endpoint(&self, path: &str, body: String) -> InternalResult<()> {
+    pub fn add_endpoint(
+        &self,
+        path: &str,
+        body: String,
+        methods: Option<Vec<Method>>,
+    ) -> InternalResult<()> {
         let valid_path = if path.starts_with("/") {
             path.to_owned()
         } else {
             format!("/{}", path)
         };
         let log_msg = format!("endpoint {} -> {}", &valid_path, &body);
-        let was_updated = self.endpoints_mut()?.add(&valid_path, Bytes::from(body));
+        let was_updated = self
+            .endpoints_mut()?
+            .add(&valid_path, Bytes::from(body), methods);
 
         log::info!(
             "{}{}",
@@ -108,7 +115,7 @@ impl ServerState {
 
     pub fn handle(&self, action: EndpointAction) -> InternalResult<()> {
         match action {
-            EndpointAction::Add { path, response } => self.add_endpoint(&path, response),
+            EndpointAction::Add { path, response } => self.add_endpoint(&path, response, None),
             EndpointAction::Allow { method, path } => {
                 self.endpoints_mut()?.allow(&path, Method::from(method))
             }
@@ -149,10 +156,12 @@ mod tests {
     #[test]
     fn test_add_endpoint() {
         let state = test_state();
-        state.add_endpoint("/test", "response".into()).unwrap();
+        state
+            .add_endpoint("/test", "response".into(), None)
+            .unwrap();
 
         state
-            .add_endpoint("no_leading_slash", "still_valid".into())
+            .add_endpoint("no_leading_slash", "still_valid".into(), None)
             .unwrap();
 
         let endpoints = state.endpoints.read().unwrap();
@@ -170,7 +179,7 @@ mod tests {
     fn test_delete_endpoint() {
         let state = test_state();
         state
-            .add_endpoint("/test/nested", "'{id: 123456}'".into())
+            .add_endpoint("/test/nested", "'{id: 123456}'".into(), None)
             .unwrap();
         state.delete_endpoint("/test/nested").unwrap();
 

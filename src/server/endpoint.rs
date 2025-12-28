@@ -49,7 +49,7 @@ impl EndpointStore {
             }
             Method::POST | Method::PUT => {
                 if let Some(request_data) = body {
-                    let is_update = self.add(path, request_data.clone());
+                    let is_update = self.add(path, request_data.clone(), None);
                     match *method {
                         Method::POST => {
                             if is_update {
@@ -81,19 +81,22 @@ impl EndpointStore {
 
     /// Add or update an endpoint. Returns true if it was an update. *Note:* `method` needs to be
     /// owned for potential insertion (if not updating)
-    pub fn add(&mut self, path: &str, body: Bytes) -> bool {
+    pub fn add(&mut self, path: &str, body: Bytes, methods: Option<Vec<Method>>) -> bool {
+        let whitelist = methods.map(|m| m.into_iter().collect()).unwrap_or_else(|| {
+            HashSet::from([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::DELETE,
+                Method::HEAD,
+            ])
+        });
         self.entries
             .insert(
                 path.to_string(),
                 Endpoint {
                     data: body,
-                    whitelist: HashSet::from([
-                        Method::GET,
-                        Method::POST,
-                        Method::PUT,
-                        Method::DELETE,
-                        Method::HEAD,
-                    ]),
+                    whitelist,
                 },
             )
             .is_some()
@@ -145,7 +148,7 @@ mod tests {
     #[test]
     fn test_add_endpoint() {
         let mut store = EndpointStore::default();
-        let was_update = store.add("/users", Bytes::from("[]"));
+        let was_update = store.add("/users", Bytes::from("[]"), None);
 
         assert!(!was_update);
         assert!(store.get("/users").is_some());
@@ -154,8 +157,8 @@ mod tests {
     #[test]
     fn test_add_updates_existing() {
         let mut store = EndpointStore::default();
-        store.add("/users", Bytes::from("[]"));
-        let was_update = store.add("/users", Bytes::from("[1,2,3]"));
+        store.add("/users", Bytes::from("[]"), None);
+        let was_update = store.add("/users", Bytes::from("[1,2,3]"), None);
 
         assert!(was_update);
         assert_eq!(store.get("/users").unwrap().as_ref(), b"[1,2,3]");
@@ -170,7 +173,7 @@ mod tests {
     #[test]
     fn test_nested_paths() {
         let mut store = EndpointStore::default();
-        store.add("/users/123/posts", Bytes::from("[]"));
+        store.add("/users/123/posts", Bytes::from("[]"), None);
 
         assert!(store.get("/users/123/posts").is_some());
         assert!(store.get("/users/123").is_none());
@@ -180,7 +183,7 @@ mod tests {
     #[test]
     fn test_delete_existing() {
         let mut store = EndpointStore::default();
-        store.add("/users", Bytes::from("[]"));
+        store.add("/users", Bytes::from("[]"), None);
 
         let removed = store.delete("/users");
         assert!(removed.is_some());
@@ -197,7 +200,7 @@ mod tests {
     #[test]
     fn test_delete_prunes_empty_nodes() {
         let mut store = EndpointStore::default();
-        store.add("/a/b/c", Bytes::from("deep"));
+        store.add("/a/b/c", Bytes::from("deep"), None);
         store.delete("/a/b/c");
 
         assert!(store.entries().is_empty());
@@ -206,8 +209,8 @@ mod tests {
     #[test]
     fn test_delete_preserves_siblings() {
         let mut store = EndpointStore::default();
-        store.add("/users/1", Bytes::from("one"));
-        store.add("/users/2", Bytes::from("two"));
+        store.add("/users/1", Bytes::from("one"), None);
+        store.add("/users/2", Bytes::from("two"), None);
         store.delete("/users/1");
 
         assert!(store.get("/users/1").is_none());
@@ -217,7 +220,7 @@ mod tests {
     #[test]
     fn test_root_path() {
         let mut store = EndpointStore::default();
-        store.add("/", Bytes::from("root"));
+        store.add("/", Bytes::from("root"), None);
 
         assert_eq!(store.get("/").unwrap().as_ref(), b"root");
     }
