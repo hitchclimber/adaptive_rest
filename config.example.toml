@@ -1,0 +1,20 @@
+# Exmple config
+# Catppuccin Mocha theme
+# https://github.com/catppuccin/catppuccin
+
+endpoints_file = "endpoints.example.json"
+
+[server]
+address = "127.0.0.1"
+port = 3000
+
+
+# [theme]
+# border = "#cba6f7" # Mauve
+# title = "#b4befe"  # Lavender
+# text = "#cdd6f4"   # Text
+# bg = "#1e1e2e"     # Base
+# emph = "#94e2d5"   # Teal
+# warn = "#f9e2af"   # Yellow
+# error = "#f38ba8"  # Red
+# log = "#89b4fa"    # Blue

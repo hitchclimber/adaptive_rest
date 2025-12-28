@@ -1,0 +1,25 @@
+[
+  {
+    "path": "/users",
+    "data": [
+      {"id": 1, "name": "Alice", "email": "alice@example.com"},
+      {"id": 2, "name": "Bob", "email": "bob@example.com"}
+    ],
+    "methods": ["GET", "POST"]
+  },
+  {
+    "path": "/users/1",
+    "data": {"id": 1, "name": "Alice", "email": "alice@example.com"},
+    "methods": ["GET", "PUT", "DELETE"]
+  },
+  {
+    "path": "/health",
+    "data": "OK",
+    "methods": ["GET", "HEAD"]
+  },
+  {
+    "path": "/config",
+    "data": {"version": "1.0.0", "environment": "development"},
+    "methods": ["GET"]
+  }
+]
