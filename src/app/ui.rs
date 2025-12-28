@@ -1,9 +1,12 @@
 use ratatui::{
+    layout::Constraint,
     prelude::{Buffer, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Widget},
 };
+
+use crate::server::endpoint::EndpointEntry;
 
 #[derive(Debug, Default)]
 pub enum InputMode {
@@ -70,5 +73,46 @@ impl<'a> Widget for &LogPane<'a> {
             })
             .collect();
         Paragraph::new(text).block(block).render(area, buf);
+    }
+}
+
+pub struct ListPane<'a> {
+    pub endpoints: &'a [EndpointEntry],
+}
+
+impl<'a> Widget for &ListPane<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let header = ["Path", "Data", "Allowed Methods"]
+            .into_iter()
+            .map(Cell::from)
+            .collect::<Row>()
+            .height(1);
+        let methods_col_width = (area.width as usize * 25) / 100;
+
+        let rows = self.endpoints.iter().map(|data| {
+            let methods_str = data.methods.iter().map(|m| m.as_str()).collect::<Vec<_>>();
+            let comma_joined = methods_str.join(", ");
+            let (me_str, height) = if comma_joined.len() <= methods_col_width {
+                (comma_joined, 1)
+            } else {
+                (methods_str.join("\n"), methods_str.len().max(1))
+            };
+            let data_display = if data.data.len() > 27 {
+                format!("{}...", &data.data[..27])
+            } else {
+                data.data.clone()
+            };
+            Row::new([data.path.clone(), data_display, me_str]).height(height as u16)
+        });
+        let t = Table::new(
+            rows,
+            [
+                Constraint::Min(15),
+                Constraint::Length(30),
+                Constraint::Percentage(30),
+            ],
+        )
+        .header(header);
+        t.render(area, buf);
     }
 }
