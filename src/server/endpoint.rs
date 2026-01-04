@@ -31,6 +31,7 @@ pub enum HandlerResult {
     Conflict,
     MethodNotAllowed,
     BadRequest,
+    Options(Vec<String>),
 }
 
 impl EndpointStore {
@@ -70,6 +71,13 @@ impl EndpointStore {
                     HandlerResult::BadRequest
                 }
             }
+            Method::OPTIONS => {
+                if let Some(options) = self.options(path) {
+                    HandlerResult::Options(options.iter().map(|m| m.to_string()).collect())
+                } else {
+                    HandlerResult::NotFound
+                }
+            }
             Method::DELETE => {
                 // we assume always success
                 let _ = self.delete(path);
@@ -104,6 +112,10 @@ impl EndpointStore {
 
     pub fn get(&self, path: &str) -> Option<&Bytes> {
         self.entries.get(path).map(|ep| &ep.data)
+    }
+
+    fn options(&self, path: &str) -> Option<&HashSet<Method>> {
+        self.entries.get(path).map(|ep| &ep.whitelist)
     }
 
     /// Delete an endpoint. Returns the removed body if it existed.

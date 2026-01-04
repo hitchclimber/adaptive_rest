@@ -25,7 +25,7 @@ In a separate window you can start hitting those endpoints with your app/`curl`.
 
 - [x] config file support
 - [ ] `XDG` support for config
-- [ ] `OPTIONS` method
+- [x] `OPTIONS` method
 - [ ] load endpoints from file during runtime
 
 

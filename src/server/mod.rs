@@ -5,6 +5,7 @@ use actix_web::{
     mime::APPLICATION_JSON,
     web::{self, Bytes, Data, to},
 };
+use serde_json::json;
 use std::{
     io,
     sync::{Arc, RwLock, RwLockWriteGuard},
@@ -24,7 +25,7 @@ pub struct ServerState {
 
 #[get("/api/health")]
 async fn health() -> impl Responder {
-    "OK"
+    HttpResponse::Ok().json(json!({"status": "ok"}))
 }
 
 macro_rules! json_error {
@@ -140,6 +141,9 @@ impl From<HandlerResult> for HttpResponse {
             HandlerResult::Ok(body) => HttpResponse::Ok().content_type(APPLICATION_JSON).body(body),
             HandlerResult::Conflict => HttpResponse::Conflict().json(json_error!("conflict")),
             HandlerResult::BadRequest => HttpResponse::BadRequest().json("bad request"),
+            HandlerResult::Options(o) => HttpResponse::Ok()
+                .insert_header(("Allow", o.join(", ")))
+                .finish(),
         }
     }
 }
