@@ -196,6 +196,20 @@ pub struct ListPane<'a> {
     pub theme: &'a AppStyle,
 }
 
+fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    if width == 0 || text.is_empty() {
+        return vec![text.to_string()];
+    }
+    if text.len() <= width {
+        return vec![text.to_string()];
+    }
+    text.chars()
+        .collect::<Vec<_>>()
+        .chunks(width)
+        .map(|c| c.iter().collect())
+        .collect()
+}
+
 impl<'a> Widget for &ListPane<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let header = ["Path", "Data", "Allowed Methods"]
@@ -204,29 +218,55 @@ impl<'a> Widget for &ListPane<'a> {
             .collect::<Row>()
             .style(self.theme.header_style)
             .height(1);
-        let methods_col_width = (area.width as usize * 25) / 100;
 
-        let rows = self.endpoints.iter().map(|data| {
-            let methods_str = data.methods.iter().map(|m| m.as_str()).collect::<Vec<_>>();
-            let comma_joined = methods_str.join(", ");
-            let (me_str, height) = if comma_joined.len() <= methods_col_width {
-                (comma_joined, 1)
-            } else {
-                (methods_str.join("\n"), methods_str.len().max(1))
-            };
-            let data_display = if data.data.len() > 27 {
-                format!("{}...", &data.data[..27])
-            } else {
-                data.data.clone()
-            };
-            Row::new([data.path.clone(), data_display, me_str]).height(height as u16)
-        });
+        // Calculate column widths (Path: Min 15, Data: 30, Methods: 30%)
+        let methods_col_width = (area.width as usize * 30) / 100;
+        let path_col_width = 15.max(area.width as usize - 30 - methods_col_width - 4); // 4 for borders/padding
+
+        let rows = self
+            .endpoints
+            .iter()
+            .map(|data| {
+                // Wrap path to fit column width
+                let path_lines = wrap_text(&data.path, path_col_width);
+
+                // Methods: comma-joined if fits, otherwise one per line
+                let methods_str = data.methods.iter().map(|m| m.as_str()).collect::<Vec<_>>();
+                let comma_joined = methods_str.join(", ");
+                let methods_lines = if comma_joined.len() <= methods_col_width {
+                    vec![comma_joined]
+                } else {
+                    methods_str.iter().map(|s| s.to_string()).collect()
+                };
+
+                // Truncate data (middle column) - no multiline
+                let data_display = if data.data.len() > 27 {
+                    format!("{}...", &data.data[..27])
+                } else {
+                    data.data.clone()
+                };
+
+                // Row height is max of path and methods line counts
+                let height = path_lines.len().max(methods_lines.len()).max(1);
+
+                Row::new([
+                    path_lines.join("\n"),
+                    data_display,
+                    methods_lines.join("\n"),
+                ])
+                .height(height as u16)
+            })
+            .chain(std::iter::once(Row::new([
+                "/api/health",
+                r#"{"status": "ok"}"#,
+                "HEAD, GET",
+            ])));
         let t = Table::new(
             rows,
             [
-                Constraint::Min(15),
+                Constraint::Length(path_col_width as u16),
                 Constraint::Length(30),
-                Constraint::Percentage(30),
+                Constraint::Length(methods_col_width as u16),
             ],
         )
         .header(header)
